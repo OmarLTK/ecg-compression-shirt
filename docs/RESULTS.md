@@ -2,7 +2,7 @@
 
 ## 1. Analog front-end
 
-**Bench gain.** 14 mVpp, 1 Hz sine from a function generator (−20 dB attenuator) at the AD620 inputs:
+**Bench gain, as stated in the report.** 14 mVpp, "1 Hz" sine from a function generator (−20 dB attenuator) at the AD620 inputs:
 
 | Node | Amplitude | Stage gain |
 |---|---|---|
@@ -12,19 +12,23 @@
 
 Stage-1 shortfall of ≈ 7 % is within RG tolerance and AD620 gain error; not investigated further.
 
-**On-body.** Gel electrodes at LA/RA/RL: ≈ 550 mVpp at the LM358 output with identifiable P, QRS, and T at 500 ms/div. Bias node held 2.5 V under load.
+**Bench gain, as captured** ([`hardware/scope/bench_sine_gain100.jpg`](../hardware/scope/bench_sine_gain100.jpg)): 14 mVpp in, 1.40 Vpp out, gain 100, at about 15 Hz (period ≈ 68 ms at 20 ms/div). This is the second stage alone. No capture of the full 14 mV → 7.68 V chain or of a 1 Hz test is in the report.
+
+**On-body.** The report states ≈ 550 mVpp at the LM358 output. The only on-body capture ([`hardware/scope/onbody_ecg_clean.png`](../hardware/scope/onbody_ecg_clean.png)) shows **257 mVpp** at 1.232 Hz (74 bpm), DC-coupled with a maximum of 1.584 V. That puts the signal on a ≈ 1.45 V level, consistent with the 1.65 V bias in the schematic, not the 2.5 V in the report. QRS and T waves are clear; there is visible broadband noise on the baseline.
 
 **Recordings and SNR.**
 
-| Recording | Configuration | SNR | HR | R-peaks detected |
-|---|---|---|---|---|
-| Subject_T | Low gain | 16.7 dB | 71 bpm | 23 |
-| Subject_Z | Low gain (early) | 15.8 dB | 75 bpm | 26 |
-| Subject_Z2 | LM358 gain → 100 | 23.8 dB | 79 bpm | 26 |
+| Recording | Configuration | Fs | SNR | HR | R-peaks detected |
+|---|---|---|---|---|---|
+| Subject_T | Low gain | **190 Hz** | 16.7 dB | 71 bpm | 23 |
+| Subject_Z | Low gain (early) | **190 Hz** | 15.8 dB | 75 bpm | 26 |
+| Subject_Z2 | LM358 gain → 100 | **192 Hz** | 23.8 dB | 79 bpm | 26 |
+
+All three recordings are 20 s at ≈ 190 Hz ([`hardware/scope/recordings_subject_T_Z_Z2.png`](../hardware/scope/recordings_subject_T_Z_Z2.png)), so the 360 Hz fix was not in place when they were taken.
 
 Raising stage-2 gain so the signal fills more of the ADC span bought ≈ 8 dB. Clinical systems reach 30 dB or more; the remaining gap points at the perfboard (no ground plane), the passive RL reference, and the ADC operating point.
 
-Sampling: R-R standard deviation under 50 ms at ≈ 75 bpm after the 190 Hz → 360 Hz fix.
+Sampling: the report states R-R standard deviation under 50 ms at ≈ 75 bpm after the 190 Hz → 360 Hz fix. No 360 Hz recording is shown.
 
 ## 2. BLE pipeline
 
@@ -48,7 +52,7 @@ Untested: Android, more than one phone model, interference-heavy environments, s
 
 ### 4a. Logistic-regression baseline (verified from output screenshots)
 
-Record-wise split, class-weighted. PAC = MIT-BIH `a` only (150 beats, all in train). Reproduced by `analysis/ml_baseline_check.py`.
+Record-wise split, class-weighted. PAC = MIT-BIH `a` only (150 beats, all in train). Reproduced by `analysis/ml_check.py`.
 
 | Split | Support N / V / PAC | Normal P / R | PVC P / R | PAC |
 |---|---|---|---|---|
@@ -58,9 +62,9 @@ Record-wise split, class-weighted. PAC = MIT-BIH `a` only (150 beats, all in tra
 
 PVC recall drops from 83 % on validation to 60 % on test. With record-wise splits that is expected: PVC morphology is patient-specific, and the test records' PVCs differ from the training records'.
 
-### 4b. ResNet-1D + RR, as reported (not reproducible from material in this repository)
+### 4b. ResNet-1D + RR (verified against the appendix logs)
 
-These tables come from the submitted report. Their non-zero PAC recall on validation and test cannot come from the split above. Treat them as unverified until the training code is added.
+PAC = `A` + `a` (2,696 beats), 180-sample (500 ms) windows, record-wise split 33 / 7 / 8 records, PAC threshold τ = 0.23. Test PAC is 1,684 beats, 1,382 of them from record 232. See [`ml/README.md`](../ml/README.md) §2.
 
 Best run, selected on validation balanced accuracy.
 
@@ -90,7 +94,12 @@ What would move PAC: a record-wise (inter-patient) split with PAC-bearing record
 
 ## 5. On-body classification
 
-The model was run on the three subject recordings above. All three subjects were healthy volunteers; no cardiologist annotation exists. Output was mostly Normal with few false PVCs, which is consistent with healthy physiology but **is not an accuracy measurement** — there is no ground truth, and a classifier that always outputs Normal would produce the same result. The submitted report's "100 % accuracy" for these runs should not be repeated.
+The ResNet labelled all 74 beats in the three recordings Normal. This is **not an accuracy measurement**:
+- the recordings are ≈ 190 Hz but were indexed as 360 Hz;
+- the script picked each recording's polarity to maximize the mean Normal probability;
+- the subjects were healthy and unannotated.
+
+Do not repeat the report's "100 % accuracy" for these runs.
 
 ## 6. Power
 

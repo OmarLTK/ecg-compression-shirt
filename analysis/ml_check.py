@@ -2,7 +2,7 @@
 Re-derive what the logistic-regression baseline screenshots (ml/baseline/*.png) imply
 about the dataset, the label mapping, and the split.
 
-Run:  python analysis/ml_baseline_check.py
+Run:  python analysis/ml_check.py
 
 Confusion matrices are transcribed from the screenshots. Rows = actual, cols = predicted,
 order = [N, V, a]. 'a' is the label the pipeline used for PAC.
@@ -70,3 +70,50 @@ for k, cm in CM.items():
           + f"   predicted-as-PAC={pred_a}")
 print("\nOn val/test every PAC prediction is a false positive: PAC recall is undefined, not 0,")
 print("and the 'macro-F1' printed there averages in a class that does not exist in the split.")
+
+
+# =====================================================================================
+# ResNet-1D + RR pipeline (report appendix, ml/resnet/*.png). Different, later pipeline:
+# labels N / V / 'a', where 'a' now holds A + a; record-wise split 33 / 7 / 8 records.
+# =====================================================================================
+RESNET = {
+    "train": [[49353, 65, 274], [145, 4466, 21], [125, 4, 764]],
+    "val":   [[13847, 32, 1044], [88, 662, 0], [76, 2, 41]],
+    "test":  [[10004, 8, 406], [48, 1696, 3], [1464, 138, 82]],
+}
+PRINTED_SPLIT = {"train": 55217, "val": 15792, "test": 13849}
+VAL_RECORDS = ["100", "101", "113", "116", "123", "215", "223"]
+TEST_RECORDS = ["201", "202", "205", "207", "217", "228", "232", "233"]
+
+# Per-record atrial premature beat counts (A, a) from PhysioNet's MIT-BIH directory of
+# records. Transcribed from memory of that table -- verify with analysis/mitbih_label_audit.py.
+PER_RECORD_A_a = {
+    "100": (33, 0), "101": (3, 0), "113": (0, 6), "116": (1, 0), "123": (0, 0),
+    "215": (3, 0), "223": (72, 1),
+    "201": (30, 97), "202": (36, 19), "205": (3, 0), "207": (107, 0), "217": (0, 0),
+    "228": (3, 0), "232": (1382, 0), "233": (7, 0),
+}
+
+print("\n" + "=" * 70 + "\nResNet-1D + RR pipeline\n" + "=" * 70)
+pac_tot = 0
+for k, cm in RESNET.items():
+    sup = support(cm)
+    pac_tot += sup[2]
+    m = metrics(cm)
+    print(f"  {k:<5} n={sum(sup):>6} (printed {PRINTED_SPLIT[k]})  support N/V/PAC={sup}  "
+          + "  ".join(f"{c}: P={p:5.1%} R={r:5.1%}" for c, (p, r) in zip(CLASSES, m)))
+print(f"  Total PAC = {pac_tot} = 2,546 'A' + 150 'a' = {2546 + 150}  -> PAC now means A + a")
+
+for name, recs, key in (("val", VAL_RECORDS, "val"), ("test", TEST_RECORDS, "test")):
+    s = sum(sum(PER_RECORD_A_a[r]) for r in recs)
+    print(f"  {name} PAC from per-record table = {s}  vs confusion-matrix support {support(RESNET[key])[2]}")
+share = PER_RECORD_A_a["232"][0] / support(RESNET["test"])[2]
+print(f"  Record 232 alone = {PER_RECORD_A_a['232'][0]} of the test PACs ({share:.0%}).")
+print("  Test PAC recall 4.9 % is therefore mostly one patient (record 232: sinus bradycardia with right bundle branch block).")
+missed = RESNET["test"][2][0]
+print(f"  PACs called Normal on test: {missed} of {support(RESNET['test'])[2]}")
+
+# On-body inference (ml/resnet/inference_subject_*.png, hardware/scope/recordings_*.png)
+for subj, n, fs in (("T", 3804, 190), ("Z", 3805, 190), ("Z2", 3834, 192)):
+    print(f"  Subject_{subj}: {n} samples = {n/fs:.1f} s at {fs} Hz, but labelled as 360 Hz "
+          f"({n/360:.1f} s); 180-sample window spans {180/fs*1e3:.0f} ms instead of 500 ms")

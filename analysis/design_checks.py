@@ -100,7 +100,13 @@ check("Storage section: samples in 30-min recording", 3_900_000, fs * leads * 18
 check("Max lost samples at 0.02 % of 30-min session", 400, 0.0002 * fs * leads * 1800, tol=0.05)
 
 # ---------------------------------------------------------------- ML window
-check("Beat window of 36 samples at 360 Hz (ms)", None, 36 / fs * 1e3, unit="ms")
+check("Report text: 36-sample window at 360 Hz (ms) -- full beat is ~600 ms", 600, 36 / fs * 1e3, tol=0.1, unit="ms")
+check("Appendix log: 180-sample window at 360 Hz (ms)", None, 180 / fs * 1e3, unit="ms")
+check("Same window on the 190 Hz on-body recordings (ms)", None, 180 / 190 * 1e3, unit="ms")
+# Bench sine capture: ~3.4 div per period at 20 ms/div
+check("Bench sine frequency from capture (Hz) -- report says 1 Hz", 1, 1 / (3.4 * 0.020), tol=0.5, unit="Hz")
+check("Bench sine stage gain from capture, 1.40 V / 14 mV", 100, 1.40 / 0.014)
+check("On-body amplitude from capture (mVpp) -- report says ~550", 550, 257, tol=0.1, unit="mV")
 check("Refractory 200 ms -> max HR (bpm)", 300, 60 / 0.200, unit="bpm")
 
 # ---------------------------------------------------------------- BOM

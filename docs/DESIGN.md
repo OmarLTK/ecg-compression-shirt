@@ -53,7 +53,7 @@ The ESP32 ADC accepts 0–3.3 V; the LM358 swings around 0 V on ±9 V rails.
 
 - 10 µF series coupling capacitor blocks DC (the corner it forms with the 500 kΩ Thevenin bias impedance is 0.03 Hz, far below the 0.72 Hz HPF).
 - 1 MΩ / 1 MΩ divider, one per channel. The schematic and layout feed it from **3.3 V → 1.65 V**; the report says 5 V → 2.5 V (ERRATA F3).
-- At 1.65 V the ±0.3 V signal spans 1.35–1.95 V, inside the ESP32 ADC's linear range at 11 dB attenuation. At 2.5 V it would reach 2.8 V, above the ≈ 2.45 V recommended limit. Measuring the node settles which is true.
+- At 1.65 V the ±0.3 V signal spans 1.35–1.95 V, inside the ESP32 ADC's linear range at 11 dB attenuation. At 2.5 V it would reach 2.8 V, above the ≈ 2.45 V recommended limit. The on-body scope capture sits around 1.45 V DC, which supports 1.65 V.
 
 ### 3.5 Power
 | Rail | Load | Draw | 500 mAh alkaline lasts |
@@ -105,4 +105,4 @@ Storage note: a 30-minute three-lead session is 1.944 M samples. JSON was chosen
 - **Protocol:** fixed-seed train / validation / test split; multiple seeds; model selected on validation balanced accuracy; post-training PAC threshold tuning on validation; single evaluation on test.
 - **Rejected alternative:** logistic regression on hand-built features — cheap and interpretable but linear, and PAC needs subtle combined shape-and-timing cues.
 
-Settled from the baseline output (ERRATA F1–F2): the split is by record, and "PAC" was MIT-BIH `a` (150 aberrated APCs), not `A` (2,546 APCs). Still open: the true window length, and whether the ResNet used the same split and labels.
+Settled from the baseline output (ERRATA F1–F2): the split is by record, and "PAC" was MIT-BIH `a` (150 aberrated APCs), not `A` (2,546 APCs). The ResNet appendix settles the rest: PAC = `A` + `a` (2,696), 180-sample (500 ms) windows, records split 33 / 7 / 8 with zero overlap.

@@ -42,3 +42,7 @@ Sequence numbers in the packets let the app detect drops. Two leads are acquired
 - The moving-average length.
 - The high-pass filter coefficients.
 - The GATT UUIDs and packet format.
+
+## Evidence check
+
+Every ESP32 recording in the report (Subject_T, Z, Z2) was sampled at 190–192 Hz. That includes Z2, which was taken after the LM358 gain fix. If the firmware reached 360 Hz, it happened after these recordings. Upload a 360 Hz recording with timestamps to close this out.
