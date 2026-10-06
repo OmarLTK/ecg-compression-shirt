@@ -46,6 +46,22 @@ Untested: Android, more than one phone model, interference-heavy environments, s
 
 ## 4. Classifier (MIT-BIH)
 
+### 4a. Logistic-regression baseline (verified from output screenshots)
+
+Record-wise split, class-weighted. PAC = MIT-BIH `a` only (150 beats, all in train). Reproduced by `analysis/ml_baseline_check.py`.
+
+| Split | Support N / V / PAC | Normal P / R | PVC P / R | PAC |
+|---|---|---|---|---|
+| Train | 54,089 / 5,047 / 150 | 99.5 / 85.1 % | 51.9 / 89.0 % | P 3.2 %, R 92.0 % |
+| Validation | 8,632 / 1,109 / 0 | 98.0 / 97.0 % | 94.8 / 82.8 % | undefined (231 false positives) |
+| Test | 12,312 / 973 / 0 | 98.1 / 97.0 % | 81.3 / 59.7 % | undefined (401 false positives) |
+
+PVC recall drops from 83 % on validation to 60 % on test. With record-wise splits that is expected: PVC morphology is patient-specific, and the test records' PVCs differ from the training records'.
+
+### 4b. ResNet-1D + RR, as reported (not reproducible from material in this repository)
+
+These tables come from the submitted report. Their non-zero PAC recall on validation and test cannot come from the split above. Treat them as unverified until the training code is added.
+
 Best run, selected on validation balanced accuracy.
 
 **Per class (%)**

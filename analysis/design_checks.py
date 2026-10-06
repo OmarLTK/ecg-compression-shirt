@@ -39,11 +39,21 @@ for v_off in (0.050, 0.080):
 
 # RC corners: f = 1 / (2 pi R C)
 f = lambda r, c: 1 / (2 * pi * r * c)
-check("Final HPF, 1 Mohm / 0.22 uF (Hz)", 0.72, f(1e6, 0.22e-6), unit="Hz")
-check("Final LPF, 10 kohm / 0.47 uF (Hz)", 33.9, f(10e3, 0.47e-6), unit="Hz")
+check("Report HPF RC product only, 1 Mohm x 0.22 uF (Hz) -- topology see FLAG below", 0.72, f(1e6, 0.22e-6), unit="Hz")
+check("LPF RC, 10 kohm x 0.47 uF (Hz) -- filters only if tapped at cap node", 33.9, f(10e3, 0.47e-6), unit="Hz")
 # Iteration 2 as written in the report: '0.47 uF / 10 kohm high-pass input'
 check("Iter-2 'HPF' 10 kohm / 0.47 uF as written (Hz) -- would kill ECG", None, f(10e3, 0.47e-6), unit="Hz")
 check("Iter-2 LPF 10 kohm / 0.1 uF (Hz)", None, f(10e3, 0.1e-6), unit="Hz")
+
+# LM358 input coupling as drawn: 0.1 uF in series with 1 kohm to virtual ground (33 kohm shunt)
+r_in = 1e3 * 33e3 / (1e3 + 33e3)
+check("HPF as drawn, 0.1 uF into 1k||33k (Hz) -- report claims 0.72 Hz", 0.72, f(r_in, 0.1e-6), unit="Hz")
+check("HPF per report values, 0.22 uF into 1 kohm (Hz)", 0.72, f(1e3, 0.22e-6), unit="Hz")
+check("Suggested fix: 33 uF into 10 kohm, Rf 1 Mohm (Hz)", None, f(10e3, 33e-6), unit="Hz")
+
+# Firmware moving-average 'notch': first null = fs / N
+check("6-tap moving average null at 360 Hz (Hz)", 60, 360 / 6, unit="Hz")
+check("Same filter at the buggy 190 Hz rate (Hz)", None, 190 / 6, unit="Hz")
 
 # AC-coupling cap into the 1M||1M bias node: HPF corner
 check("AC-coupling corner, 10 uF into 500 kohm (Hz)", None, f(0.5e6, 10e-6), unit="Hz")
@@ -52,7 +62,9 @@ check("AC-coupling corner, 10 uF into 500 kohm (Hz)", None, f(0.5e6, 10e-6), uni
 check("Measured AD620 gain (77 mV / 14 mV)", 5.5, 77 / 14)
 check("Measured LM358 gain (7.68 V / 77 mV)", 100, 7.68 / 0.077)
 
-# Bias network
+# Bias network -- report says 5 V -> 2.5 V; hand schematic and layout say 3.3 V -> 1.65 V
+check("Bias midpoint per schematic, 3.3 V divider (V)", None, 3.3 * 0.5, unit="V")
+check("Swing per schematic, 1.65 V +/- 0.3 V: top (V)", None, 1.65 + 0.3, unit="V")
 v_bias = 5 * 1e6 / (1e6 + 1e6)
 check("Bias midpoint (V)", 2.5, v_bias, unit="V")
 check("Upper excursion with 600 mVpp (V)", 2.8, v_bias + 0.3, unit="V")

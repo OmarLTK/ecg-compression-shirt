@@ -1,94 +1,101 @@
 # ecg-compression-shirt
 
-A garment-integrated, three-lead wearable ECG that streams over Bluetooth Low Energy to a phone app and classifies each beat as Normal, PVC, or PAC. Biomedical Engineering capstone (RP02), Toronto Metropolitan University, 2026.
+A garment-integrated wearable ECG with two acquisition channels and three derived leads. It streams over Bluetooth Low Energy to a phone app that labels each beat as Normal, PVC or PAC. Biomedical Engineering capstone (RP02), Toronto Metropolitan University, 2026.
 
-This repository is the engineering record of the build: the analog front-end and why it ended up the way it did, the five hardware iterations and what broke each one, the BLE and app pipeline, the classifier, the measured results, and the limits that were not solved. A script in [`analysis/`](analysis/design_checks.py) recomputes every design number from first principles; where the submitted report and the arithmetic disagree, [docs/ERRATA.md](docs/ERRATA.md) says so.
+![Boards in the enclosure](hardware/photos/casing_open.jpg)
 
-**Status:** working proof of concept on hand-wired perfboard. Not a medical device, not validated against annotated clinical recordings.
+This repository is the engineering record of the build. It covers:
+- the analog front-end and the five hardware iterations, including what broke each one;
+- the hand-drawn schematic and layout, with a design review;
+- the BLE and app pipeline;
+- the classifier, including an audit of its training data;
+- the measured results, and the limits that were not solved.
+
+Two scripts recompute every number from first principles:
+- [`analysis/design_checks.py`](analysis/design_checks.py) checks the hardware, link and BOM figures.
+- [`analysis/ml_baseline_check.py`](analysis/ml_baseline_check.py) checks the classifier output.
+
+Where the submitted report disagrees with the arithmetic or with the source material, [docs/ERRATA.md](docs/ERRATA.md) says so.
+
+**Status:** working proof of concept, hand-soldered on perfboard. Not a medical device. Not validated against annotated clinical recordings.
 
 ---
-
-## What it does
-
-Four electrodes (RA, LA, LL, RL) are held against the skin by a compression shirt. Two AD620 instrumentation-amplifier channels feed an LM358 gain stage, a passive band-limit, and a DC level shift into the ESP32's ADC at 360 Hz. The ESP32 streams the leads over BLE notifications to a React Native app that draws a 5-second scrolling trace at 60 fps, detects R-peaks, computes heart rate, SDNN, PR and QT, scores signal quality, and shows a per-beat label. The beat classifier is a dual-input 1D ResNet trained on the MIT-BIH Arrhythmia Database.
 
 ## Architecture
 
 ```
- Electrodes (RA, LA, LL; RL reference) in compression shirt
-     │  47 kΩ series + 1N4148 clamps to ±9 V      (patient fault-current limit)
+ Electrodes RA, LA, LL (+ RL ground reference), dry Ag/AgCl, Mason–Likar torso sites, held by compression shirt
+     │  47 kΩ series per input (fault current ≤ 191 µA)
      ▼
- AD620  ×2  — G ≈ 5.9  (RG = 10 kΩ)              (low gain: survives electrode DC offset)
+ AD620 ×2 — G = 5.94 (RG = 10 kΩ), REF = GND       ch1: RA − LA = −Lead I    ch2: RA − LL = −Lead II
+     ▼                                              (low gain so electrode DC offset cannot saturate it)
+ AC coupling → LM358 inverting, G = −100 (100 kΩ / 1 kΩ)   → +Lead I, +Lead II   total |G| ≈ 594
      ▼
- HPF 0.72 Hz (1 MΩ / 0.22 µF)
+ 10 µF → 1 MΩ / 1 MΩ bias from 3.3 V → 1.65 V  (schematic; report says 2.5 V — see ERRATA F3)
      ▼
- LM358 inverting — G = −100 (100 kΩ / 1 kΩ)      total |G| ≈ 594
-     ▼
- LPF 33.9 Hz (10 kΩ / 0.47 µF)
-     ▼
- 10 µF AC coupling → 1 MΩ / 1 MΩ divider → 2.5 V bias   (one network per channel)
-     ▼
- ESP32 ADC, 12-bit, 360 Hz  ─ 60 Hz digital notch ─ BLE GATT: 3 lead chars + 1 classification char
-     ▼
- Phone app  (Expo SDK 54 · React Native 0.81 · react-native-ble-plx · Skia · Reanimated)
+ ESP32-WROOM-32 DevKit — GPIO 34 / 35, 12-bit, 16× oversampled to 360 Hz,
+                         moving-average 60 Hz null, digital baseline high-pass, Lead III = II − I
+     ▼  BLE GATT: 3 lead characteristics + 1 classification characteristic
+ Phone app — Expo SDK 54 · React Native 0.81 · react-native-ble-plx · Skia · Reanimated
      ├─ base64 decode → circular buffer → Skia path on UI thread (60 fps)
      ├─ adaptive-threshold R-peak detector, 200 ms refractory → HR, SDNN, PR, QT
-     ├─ pSQI signal-quality gate (score < 50 suppresses classification)
-     └─ beat label: firmware classification if present, else on-device fallback
+     ├─ pSQI quality gate (score < 50 suppresses beat labels)
+     └─ beat label {N, PVC, PAC}
 
- Offline: 1D ResNet (waveform branch) + dense RR-interval branch → softmax {N, PVC, PAC}
-          trained on MIT-BIH, class-weighted loss + PAC oversampling
+ Offline: trained on the MIT-BIH Arrhythmia Database, record-wise split, class-weighted
 ```
 
-Power: two 9 V alkaline batteries (±9 V rails), L7806CV feeding the ESP32 board, SPST switch on the positive rail so the circuit is fully de-energized while electrodes go on and off.
+Power: two 9 V alkaline cells (±9 V) mounted under the board stack, an L78xx regulator, and an SPST switch on the positive rail. The enclosure demo runs the ESP32 from USB.
 
-Full derivations: [docs/DESIGN.md](docs/DESIGN.md).
+Details:
+- [docs/DESIGN.md](docs/DESIGN.md) — derivations.
+- [hardware/SCHEMATIC.md](hardware/SCHEMATIC.md) — netlist, review and photos.
+- [ml/README.md](ml/README.md) — classifier audit.
+- [firmware/README.md](firmware/README.md) — acquisition firmware.
 
 ## Engineering log: what broke and what fixed it
 
 | # | Symptom | Root cause | Fix |
 |---|---|---|---|
-| 1 | AD620 output a flat line at −8 V with real electrodes; fine with a function generator | 50–80 mV half-cell offset between electrodes × gain 106 = 5.3–8.5 V of DC → saturation | Dropped AD620 gain to ≈ 6 (RG 470 Ω → 10 kΩ); moved the remaining gain after a high-pass that strips the offset |
-| 2 | Clean trace on the scope, but recorded data was mostly noise | Total gain 60 put the ECG in < 1 % of the 0–3.3 V ADC span — under 4 effective bits | LM358 feedback 10 kΩ → 100 kΩ; total gain ≈ 600, ≈ 550 mVpp from real electrodes. SNR rose from ≈ 16 dB to ≈ 24 dB |
-| 3 | 2.5 V bias node collapsed to 30 mV | LM358's low output impedance overpowered the 1 MΩ divider through a DC path | 10 µF series coupling capacitor; ECG now rides on the bias |
-| 4 | Sharing one bias divider across channels | Each channel's AC signal would leak into the other through the shared node | Independent bias network per channel |
-| 5 | TC1262 3.3 V regulator died moving from breadboard to perfboard | Regulator failure during the transition (cause not isolated) | L7806CV + 0.33 µF in / 0.1 µF ‖ 10 µF out; bias moved 1.65 V → 2.5 V |
-| 6 | No protection between a fault and the patient | Inputs had series resistance only | 1N4148 clamps from each input to both rails behind the 47 kΩ resistors |
-| 7 | Recorded heart rate and morphology looked wrong | ESP32 loop was oversampling and only delivering 190 Hz | Timestamped the pipeline, removed the oversampling, reached 360 Hz |
-| 8 | Waveform dropped to 35–40 fps during classification bursts | BLE and ML state in one React context: every classification re-rendered the trace | Split into `BLEContext` / `MLContext` / `AuthContext`; 60 fps held |
-| 9 | Trace unusable during walking or exercise | Motion artifact (≈ 1–10 Hz) overlaps the QRS band; dry electrodes shift on skin | **Not fixed.** SQI gate hides labels on bad segments; device is scoped to low-movement use |
+| 1 | AD620 output a flat line at −8 V with real electrodes; fine with a function generator | 50–80 mV half-cell offset between electrodes × gain 106 = 5.3–8.5 V of DC → saturation | AD620 gain dropped to ≈ 6 (RG 470 Ω → 10 kΩ); remaining gain moved after AC coupling |
+| 2 | Clean trace on the scope, but recorded data was mostly noise | Total gain of 60 put the ECG in < 1 % of the ADC span (under 4 effective bits) | LM358 feedback 10 kΩ → 100 kΩ; total gain ≈ 600; SNR ≈ 16 dB → ≈ 24 dB |
+| 3 | Bias node collapsed from mid-rail to 30 mV | The LM358's low output impedance overpowered the 1 MΩ divider through a DC path | 10 µF series coupling capacitor |
+| 4 | Risk of crosstalk between leads | One shared bias divider would couple the two channels | Independent bias network per channel |
+| 5 | TC1262 3.3 V regulator failed moving from breadboard to perfboard | Not isolated | L7806CV with 0.33 µF in and 0.1 µF ‖ 10 µF out |
+| 6 | No protection between a fault and the patient | Series resistance only | 1N4148 clamps from each input to both rails, behind the 47 kΩ |
+| 7 | Heart rate wrong; 60 Hz still present | Oversampling loop only reached 190 Hz, which also moved the moving-average null from 60 Hz to 31.7 Hz | Timestamped capture, loop fixed, 360 Hz restored |
+| 8 | Waveform dropped to 35–40 fps during classification | BLE and ML state in one React context | Split contexts; 60 fps held |
+| 9 | Trace unusable while walking or exercising | Motion artifact (≈ 1–10 Hz) overlaps the QRS band; dry electrodes shift on the skin | **Not fixed.** The SQI gate hides labels; use is scoped to low movement |
 
 ## Results
 
 | Measure | Result | Conditions |
 |---|---|---|
-| Analog gain (bench) | 5.5 (AD620) × 99.7 (LM358) | 14 mVpp, 1 Hz sine, function generator |
-| ECG amplitude at LM358 out | ≈ 550 mVpp, PQRST visible | Gel electrodes, LA/RA/RL |
-| Recording SNR | 15.8 → 23.8 dB after gain fix | 3 subject recordings |
-| BLE packet loss | 0.00 % / 0.01 % / 0.12 % | 1 / 5 / 10 m, iPhone 13, 30-min sessions |
-| BLE one-way latency | 5.2 / 5.8 / 7.1 ms | GPIO-toggle vs. callback timestamp |
-| Decode fidelity (Pearson r) | ≥ 0.9993 | ESP32 serial log vs. phone-decoded samples |
-| Render rate | 60 fps sustained | iPhone 13 |
-| Classifier, test set | Macro-F1 64.4 %, balanced accuracy 66.0 % | MIT-BIH held-out split |
-| — Normal | P 86.9 / R 96.0 / F1 91.2 % | |
-| — PVC | P 92.1 / R 97.1 / F1 94.5 % | |
-| — PAC | P 16.7 / R **4.9** / F1 7.5 % | |
-| Battery life | ≈ 4.6 h (positive rail) | 109 mA draw, 500 mAh alkaline |
+| Analog gain (bench) | 5.5 (AD620) × 99.7 (LM358) | 14 mVpp, 1 Hz sine |
+| ECG amplitude at LM358 out | ≈ 550 mVpp, PQRST visible | Gel electrodes |
+| Recording SNR | 15.8 → 23.8 dB after the gain fix | 3 subject recordings |
+| BLE packet loss | 0.00 / 0.01 / 0.12 % | 1 / 5 / 10 m, iPhone 13, 30-min sessions |
+| BLE one-way latency | 5.2 / 5.8 / 7.1 ms | GPIO toggle vs. callback timestamp |
+| Decode fidelity (Pearson r) | ≥ 0.9993 | ESP32 serial log vs. phone |
+| Render rate | 60 fps | iPhone 13 |
+| Normal beats, test (baseline) | P 98.1 % / R 97.0 % | Logistic regression, record-wise split |
+| PVC, test (baseline) | P 81.3 % / R 59.7 % | Same |
+| PAC | **Not measurable** — see below | |
+| Battery life | ≈ 4.6 h (+9 V cell) | 109 mA, 500 mAh alkaline |
 
-Detail and interpretation: [docs/RESULTS.md](docs/RESULTS.md).
+Full tables: [docs/RESULTS.md](docs/RESULTS.md).
 
 ## Known limitations
 
-Stated plainly, because they are real.
-
-- **PAC detection does not work.** Test recall is 4.9 %: the model labels almost every PAC as Normal. PAC F1 falls from 78 % on training data to under 8 % on validation and test, which is overfitting to a tiny minority class, not a mild generalization gap. PVC and Normal are the only classes with usable performance.
-- **No clinical validation.** The three on-body recordings came from healthy subjects with no cardiologist annotation. Agreement with "expected physiology" there is not an accuracy figure; a model that always outputs Normal would pass it.
-- **Motion kills the signal.** Medium and high activity make even R-peak detection unreliable. Use is limited to sitting, desk work, or sleep.
-- **Battery life is hours, not days.** The ESP32 draws ≈ 100 mA while streaming, all of it through the positive 9 V cell. 72-hour Holter-style wear would need ~16 batteries; a separate Li-Po for the ESP32 is the fix.
-- **ADC operating point is partly nonlinear.** The 2.5 V bias with ±0.3 V swing reaches 2.8 V, above the ≈ 2.45 V top of the ESP32 ADC's recommended linear range at 11 dB attenuation. Biasing near 1.3 V would keep the signal in the linear region.
-- **No active right-leg drive.** RL is a passive reference. Common-mode rejection relies on the AD620 alone; the ≈ 6 dB SNR gap to clinical systems likely needs RLD and a ground-planed PCB.
-- **Hand-wired perfboard.** A PCB layout exists; the tested unit is perfboard, with the noise coupling that implies.
-- **Three leads from two amplifiers.** Two acquisition channels are measured; Lead III follows from Einthoven's law (III = II − I). No precordial lead, so bundle-branch morphology and PVC origin cannot be resolved.
+- **PAC detection was never tested.** The pipeline labelled MIT-BIH `a` beats (150 aberrated APCs) as PAC and ignored the 2,546 ordinary `A` APCs. The record-wise split put all 150 in training, so the validation and test sets contain no PACs. The report's ResNet PAC numbers imply a different split that is not in this repository. See [ml/README.md](ml/README.md).
+- **Which model shipped is unresolved.** The report describes a dual-input ResNet. The ML owner's summary says logistic regression was chosen because the CNN underperformed.
+- **Analog filtering doesn't match the documentation.** As drawn, the input coupling gives a ≈ 1.6 kHz high-pass, and the low-pass RC hangs off the op-amp output, where it filters nothing. The working board must differ from the drawing. Analog band-limiting is unconfirmed; see [hardware/SCHEMATIC.md](hardware/SCHEMATIC.md).
+- **The 60 Hz filter is a moving average.** It nulls 60 Hz but is −3 dB at about 27 Hz.
+- **No clinical validation.** On-body recordings came from three healthy, unannotated subjects. Getting "mostly Normal" on them is not an accuracy figure.
+- **Motion kills the signal.** Sitting, desk work and sleep only.
+- **Battery life is hours.** The ESP32 draws about 100 mA through the +9 V cell. Multi-day wear needs a separate Li-Po and BLE light sleep.
+- **No right-leg drive.** RL is a passive ground reference.
+- **Frontal plane only.** Two acquired leads, Lead III derived, no V1. Bundle-branch morphology and PVC origin cannot be resolved.
 
 ## Repository layout
 
@@ -96,31 +103,44 @@ Stated plainly, because they are real.
 .
 ├── README.md
 ├── docs/
-│   ├── DESIGN.md        # Signal chain derivations, BLE/app pipeline, classifier architecture
-│   ├── RESULTS.md       # All measured results with conditions and interpretation
-│   └── ERRATA.md        # Where the submitted report's text and the arithmetic disagree
+│   ├── DESIGN.md              # Derivations: lead system, AFE, power, BLE, app, classifier
+│   ├── RESULTS.md             # Measured results with conditions
+│   ├── ERRATA.md              # Report vs. arithmetic vs. source material
+│   └── concept/               # Semester-1 block diagram (12-lead → 5-lead → final)
 ├── analysis/
-│   └── design_checks.py # Recomputes every design figure; prints PASS / FLAG
+│   ├── design_checks.py       # Hardware / link / BOM numbers → PASS / FLAG
+│   └── ml_baseline_check.py   # Re-derives label mapping and split from confusion matrices
 ├── hardware/
-│   ├── bom.csv          # Corrected bill of materials
-│   └── README.md        # Where schematic, layout, and photos go
-├── firmware/            # ESP32 acquisition + BLE  (pending upload)
-├── app/                 # Expo / React Native app  (pending upload)
-└── ml/                  # Training notebook, model, metrics  (pending upload)
+│   ├── SCHEMATIC.md           # Netlist, design review, photo gallery
+│   ├── schematic_hand.jpg
+│   ├── perfboard_layout_channel1.jpg
+│   ├── photos/  video/
+│   └── bom.csv
+├── firmware/README.md         # Acquisition behaviour (code pending)
+├── app/README.md              # Phone app (code pending)
+└── ml/
+    ├── README.md              # Classifier audit
+    └── baseline/              # Logistic-regression output screenshots
 ```
-
-Verify the numbers yourself:
 
 ```bash
 python analysis/design_checks.py
+python analysis/ml_baseline_check.py
 ```
 
 ## Team
 
-Omar Ali-Yare, Justin Allen, Tenzin Dhonyoe, Raphael Mancini. Supervised by Robnier Reyes Perez, Department of Electrical, Computer & Biomedical Engineering, TMU.
+Supervised by Robnier Reyes Perez, Department of Electrical, Computer & Biomedical Engineering, TMU. Each member owned one subsystem; integration and testing were shared.
 
-<!-- TODO(Omar): replace with an accurate split before publishing, e.g.
-**My role:** analog front-end design, five board iterations, bench validation, power and patient-safety protection.
-Name only work you can defend line by line in an interview. -->
+| Member | Owned |
+|---|---|
+| **Omar Ali-Yare** (A) | Analog front-end: requirements (360 Hz to match MIT-BIH), two-stage AD620/LM358 topology, the bias network, all five board iterations, breadboard-to-perfboard migration, the ESP32 sampling firmware (oversampling, 60 Hz rejection, baseline high-pass, the 190 → 360 Hz fix), and bench and on-body validation |
+| Raphael Mancini (B) | ML pipeline: MIT-BIH preprocessing, beat-centred segmentation, logistic-regression baseline, 1D CNN; helped debug the AFE |
+| Justin Allen (C) | Wearable: lead reduction, Mason–Likar placement, dry electrodes in the compression shirt, 3D-printed casing |
+| Tenzin Dhonyoe (D) | Phone app and BLE pipeline: device discovery, packet handling, live display, end-to-end streaming tests |
 
-Source data for training: MIT-BIH Arrhythmia Database, PhysioNet (Moody & Mark, 2001; Goldberger et al., 2000).
+Training data: MIT-BIH Arrhythmia Database, PhysioNet (Moody & Mark, 2001; Goldberger et al., 2000).
+
+## License
+
+Not yet chosen. All four authors need to agree on one before code is added.

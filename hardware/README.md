@@ -1,11 +1,20 @@
 # Hardware
 
-`bom.csv` is the corrected bill of materials: components CAD 404.62, DigiKey shipping and HST CAD 19.10, SoftPulse freight/tariff/tax **USD 77.84** (convert at the invoice date before quoting a single total). `in_final_build` marks parts that were bought but not used in the tested unit.
+Owner: Omar Ali-Yare (Student A, analog front-end and acquisition). Wearable integration and casing by Justin Allen (Student C).
 
-Pending upload (see the checklist in the top-level README):
+| File | What it is |
+|---|---|
+| [`SCHEMATIC.md`](SCHEMATIC.md) | Netlist, design review and photos. **Start here.** |
+| `schematic_hand.jpg` | Final two-channel schematic (AD620 → LM358 → bias → ESP32) |
+| `perfboard_layout_channel1.jpg` | Hand-drawn perfboard placement for channel 1 |
+| `photos/` | Enclosure, top, side and ESP32/battery views |
+| `video/` | Three short build walk-throughs (re-encoded to 720p) |
+| `bom.csv` | Corrected bill of materials |
 
-- `schematic.pdf` — final AD620 + LM358 + bias + protection + ESP32 schematic (report Fig. 14)
-- `layout/` — PCB layout source and a PDF/PNG export (report Fig. 15); say clearly that the tested unit is perfboard
-- `iterations/` — schematics or annotated photos of iterations 1–4
-- `photos/` — perfboard top/bottom, casing, shirt electrode mounting, scope captures (sine bench test, on-body PQRST)
-- `casing/` — CAD source and STL for the waist enclosure (report Fig. 2–3)
+**BOM totals:** components CAD 404.62; DigiKey shipping and HST CAD 19.10; SoftPulse freight, tariff and tax **USD 77.84**. Convert the USD amount at the invoice date before quoting a single total. The `in_final_build` column marks parts that were bought but not used in the tested unit.
+
+Still wanted:
+- The Altium schematic and PCB source, plus a PDF export.
+- Scope captures: the 1 Hz sine bench test and on-body PQRST.
+- A photo of the electrodes stitched into the shirt.
+- The casing CAD or STL.

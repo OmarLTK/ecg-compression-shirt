@@ -39,10 +39,10 @@ AD620, G = 1 + 49.4 kΩ / RG.
 Principle: keep pre-HPF gain low enough that worst-case electrode offset cannot saturate the stage; take the rest of the gain after the offset is removed.
 
 ### 3.3 Band-limit and Stage 2
-- High-pass: 1 MΩ / 0.22 µF → f = 1/(2πRC) = **0.72 Hz**
-- LM358 inverting: −100 kΩ / 1 kΩ = **−100** (measured 99.7)
-- Low-pass: 10 kΩ / 0.47 µF → **33.9 Hz**
-- 60 Hz notch in ESP32 firmware
+- LM358 inverting: −100 kΩ / 1 kΩ = **−100** (measured 99.7). Because the stage inverts, the AD620 inputs are wired RA to +IN, which gives an upright Lead I and Lead II at the output.
+- High-pass, as the report states it: 1 MΩ / 0.22 µF → 0.72 Hz. **That corner is not achievable in either documented topology.** As drawn (0.1 µF in series with the 1 kΩ input resistor), the corner is ≈ 1.64 kHz. See `hardware/SCHEMATIC.md` issue 1 and ERRATA F4.
+- Low-pass: 10 kΩ / 0.47 µF → 33.9 Hz, but only if the output is taken at the capacitor node (issue 2).
+- 60 Hz rejection in firmware: an N-sample moving average with N = 6 at 360 Hz nulls 60 Hz, but it is also a ≈ 27 Hz low-pass.
 
 Total gain ≈ 594. A 1 mVpp ECG becomes ≈ 600 mVpp; ≈ 550 mVpp measured on real electrodes.
 
@@ -52,10 +52,8 @@ Trade-off: a 0.72 Hz corner is above the 0.05 Hz diagnostic-ECG convention and a
 The ESP32 ADC accepts 0–3.3 V; the LM358 swings around 0 V on ±9 V rails.
 
 - 10 µF series coupling capacitor blocks DC (the corner it forms with the 500 kΩ Thevenin bias impedance is 0.03 Hz, far below the 0.72 Hz HPF).
-- 1 MΩ / 1 MΩ divider from 5 V → 2.5 V bias. One network per channel.
-- Signal sits between ≈ 2.2 V and 2.8 V.
-
-Known issue: at 11 dB attenuation the ESP32 ADC is only specified as reasonably linear up to roughly 2.45 V; the upper part of this swing is in the compressive region, consistent with the ADC nonlinearity seen in the data. Re-biasing to ≈ 1.3 V (or using an external ADC such as the MCP3202 that was purchased) fixes it.
+- 1 MΩ / 1 MΩ divider, one per channel. The schematic and layout feed it from **3.3 V → 1.65 V**; the report says 5 V → 2.5 V (ERRATA F3).
+- At 1.65 V the ±0.3 V signal spans 1.35–1.95 V, inside the ESP32 ADC's linear range at 11 dB attenuation. At 2.5 V it would reach 2.8 V, above the ≈ 2.45 V recommended limit. Measuring the node settles which is true.
 
 ### 3.5 Power
 | Rail | Load | Draw | 500 mAh alkaline lasts |
@@ -99,11 +97,12 @@ Storage note: a 30-minute three-lead session is 1.944 M samples. JSON was chosen
 ## 6. Classifier
 
 - **Task:** supervised, three classes — Normal (N), PVC, PAC.
-- **Data:** MIT-BIH Arrhythmia Database (360 Hz), beat windows centred on R-peaks, plus RR-interval features.
+- **Data:** MIT-BIH Arrhythmia Database (360 Hz), beat windows centred on annotated R-peaks, plus RR-interval features. Labels: N, V and `a`.
+- **Baseline:** class-weighted logistic regression (Raphael's summary says this was the model selected).
 - **Architecture:** dual-input. Branch 1: 1D convolutional residual blocks on the waveform (depth up, temporal resolution down). Branch 2: fully connected layers on RR features. Concatenate → dense layers with dropout → softmax.
 - **Why the RR branch:** PACs often look morphologically normal; prematurity is the defining feature.
 - **Imbalance handling:** class-weighted categorical cross-entropy plus PAC oversampling; Adam optimizer.
 - **Protocol:** fixed-seed train / validation / test split; multiple seeds; model selected on validation balanced accuracy; post-training PAC threshold tuning on validation; single evaluation on test.
 - **Rejected alternative:** logistic regression on hand-built features — cheap and interpretable but linear, and PAC needs subtle combined shape-and-timing cues.
 
-Open questions to settle before quoting these results externally (see ERRATA): whether the split was by record (patient) or by beat, and the true window length.
+Settled from the baseline output (ERRATA F1–F2): the split is by record, and "PAC" was MIT-BIH `a` (150 aberrated APCs), not `A` (2,546 APCs). Still open: the true window length, and whether the ResNet used the same split and labels.
