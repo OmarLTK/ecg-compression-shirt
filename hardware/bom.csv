@@ -1,0 +1,40 @@
+component,supplier,qty,unit_cost,line_total,currency,in_final_build,note
+AD620 instrumentation amplifier,DigiKey,2,25.11,50.22,CAD,yes,
+LM358 dual op-amp,DigiKey,4,0.42,1.68,CAD,yes,
+TC1262 3.3V regulator,DigiKey,3,1.73,5.19,CAD,no,failed in iteration 4; replaced by L7806CV
+MCP3202 12-bit SAR ADC,DigiKey,2,2.56,5.12,CAD,no,purchased; ESP32 internal ADC used
+8-pin DIP socket,DigiKey,10,0.27,2.70,CAD,yes,report printed 2.73
+USB IDC motherboard cable,DigiKey,1,11.82,11.82,CAD,yes,
+Disposable gel ECG electrodes 12-pack,DigiKey,1,6.17,6.17,CAD,test only,
+5-pos 0.1in stacking header,DigiKey,1,0.39,0.39,CAD,yes,
+MyoWare 2.0 reference cable,DigiKey,10,1.88,18.80,CAD,yes,
+USB IDC header cable 24in,DigiKey,1,3.51,3.51,CAD,yes,
+Disposable gel ECG electrodes 12-pack,DigiKey,2,6.16,12.32,CAD,test only,
+SoftPulse dry electrodes,SoftPulse,5,36.00,180.00,CAD,yes,report printed 36.00
+SoftPulse dry electrode flat,SoftPulse,5,0.00,0.00,CAD,yes,
+Compression shirt (UA HeatGear),Under Armour,2,39.55,79.10,CAD,yes,
+ESP32 dev board,Lab stock,1,12.00,12.00,CAD,yes,
+L7806CV 6V regulator,Lab stock,1,1.50,1.50,CAD,yes,
+Double-sided perfboard,Lab stock,3,2.00,6.00,CAD,yes,
+47k resistor 1/4W,Lab stock,6,0.05,0.30,CAD,yes,
+10k resistor 1/4W,Lab stock,4,0.05,0.20,CAD,yes,
+1k resistor 1/4W,Lab stock,2,0.05,0.10,CAD,yes,
+100k resistor 1/4W,Lab stock,2,0.05,0.10,CAD,yes,
+1M resistor 1/4W,Lab stock,4,0.05,0.20,CAD,yes,
+33k resistor 1/4W,Lab stock,2,0.05,0.10,CAD,unknown,role not described in report
+0.1uF ceramic capacitor,Lab stock,6,0.10,0.60,CAD,yes,
+0.33uF ceramic capacitor,Lab stock,1,0.10,0.10,CAD,yes,
+0.47uF ceramic capacitor,Lab stock,2,0.10,0.20,CAD,yes,
+0.22uF ceramic capacitor,Lab stock,2,0.10,0.20,CAD,yes,
+10uF electrolytic capacitor,Lab stock,4,0.15,0.60,CAD,yes,
+1N4148 signal diode,Lab stock,8,0.05,0.40,CAD,yes,
+SPST toggle switch,Lab stock,1,1.00,1.00,CAD,yes,
+Hookup wire assorted,Lab stock,1,3.00,3.00,CAD,yes,
+Solder,Lab stock,1,0.00,0.00,CAD,yes,
+9V battery snap,Lab stock,2,0.50,1.00,CAD,yes,
+Shipping (DigiKey main order),DigiKey,1,8.00,8.00,CAD,n/a,
+Shipping (DigiKey order 98122669),DigiKey,1,8.00,8.00,CAD,n/a,
+HST (DigiKey order 98122669),DigiKey,1,3.10,3.10,CAD,n/a,
+Freight UPS Standard,SoftPulse,1,44.00,44.00,USD,n/a,convert before totalling
+Tariff surcharge,SoftPulse,1,14.40,14.40,USD,n/a,convert before totalling
+GST/HST on import,SoftPulse,1,19.44,19.44,USD,n/a,convert before totalling

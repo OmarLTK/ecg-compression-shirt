@@ -1,0 +1,59 @@
+# Errata: submitted report vs. arithmetic and internal consistency
+
+The capstone report (*Wearable ECG with Real-Time Pathology Detection*, RP02, April 2026) is the source for this repository. Where its text disagrees with its own numbers, with itself, or with the arithmetic, the corrected value is used everywhere in this repo and the discrepancy is recorded here. Numeric items are reproduced by `analysis/design_checks.py`.
+
+Confidence: **high** unless marked.
+
+## A. Arithmetic
+
+| # | Report says | Correct | Note |
+|---|---|---|---|
+| A1 | BLE test: expected samples = 360 Hz × 3 leads × **360 s** = 1,944,000 | × **1,800 s** (30 min) = 1,944,000 | The product is right; the stated duration is wrong (360 s gives 388,800). |
+| A2 | Storage: a 30-min, 3-lead, 360 Hz recording is ≈ **3.9 M** samples | **1.944 M** samples | Off by 2×. The ≈ 15 MB JSON size should be re-measured, not rescaled. |
+| A3 | BOM: SoftPulse dry electrodes, 5 × $36.00 = **$36.00** | **$180.00** | The printed $404.65 subtotal already assumes $180; summing the printed line totals gives $260.65. |
+| A4 | BOM: 8-pin DIP socket, 10 × $0.27 = $2.73 | $2.70 | Rounding of unit price. Trivial. |
+| A5 | Grand total $501.59 **CAD** | Mixed currency | $77.84 of SoftPulse freight, tariff, and tax is in **USD** and was added unconverted. |
+| A6 | Regulator dissipates ≈ 600 mW "at 200 mA" | ≈ 330 mW at the measured 109 mA | 200 mA is not the system's measured draw anywhere in the report. |
+| A7 | Iteration 2 bandpass: "0.47 µF / 10 kΩ **high-pass** input, 10 kΩ / 0.1 µF low-pass" | As written: HPF at **33.9 Hz**, LPF at 159 Hz | A 34 Hz high-pass removes most ECG energy. Either the values are swapped in the text or that iteration was mis-built. **Moderate** — needs the iteration-2 schematic. |
+| A8 | Analysis section: LM358 output "measured **7 V**" | **7.68 V** (testing section) | Same measurement, two values. |
+
+## B. Contradictions inside the report
+
+| # | Statement | Conflicts with |
+|---|---|---|
+| B1 | Theory §1.3: RL electrode is a **driven right leg** | Conclusion: active right-leg drive is **future work**. The built circuit has a passive RL reference. |
+| B2 | Abstract: "custom-designed, cost-effective **PCB**" | Iteration 4: build moved to **double-sided perfboard**; conclusion blames "noise coupling in the perfboard design". A layout figure exists; a fabricated PCB is not described. |
+| B3 | BLE-vs-Wi-Fi table: ESP32 BLE ≈ **5 mA** avg → ≈ 100 h on 500 mAh | Power section: ESP32 draws ≈ **100 mA** streaming BLE → 4.6 h. The 5 mA figure assumes light sleep the firmware does not use. |
+| B4 | Rendering "met 60 fps on **both platforms**" | Only an **iPhone 13** was tested. |
+| B5 | Real-world classification: "**100 % accuracy** across all three runs" | No annotated ground truth; healthy subjects. Accuracy is undefined; an always-Normal classifier would score the same. |
+| B6 | ML analysis: "**mild** overfitting", "strong performance", "reasonable generalization" | PAC F1 78 % → 6.8 % (val) → 7.5 % (test); PAC test recall 4.9 %. This is severe overfitting on the minority class. |
+| B7 | Segmentation: windows of **36 samples** "capture a complete cardiac cycle" with P, QRS, T | 36 samples at 360 Hz = **100 ms** — roughly one QRS. A full P-to-T span is ≈ 600 ms (≈ 216 samples). Likely a typo (e.g. 360 or 256). **Moderate** — needs the training code. |
+| B8 | Electrode theory: Ag/AgCl **with conductive gel** | Design objective: **dry** electrodes (SoftPulse) because gel irritates. The trade-off of dry contact (higher, less stable impedance) is not analysed. |
+| B9 | "3-lead" acquisition | Circuit is **dual-lead** (two AD620 channels); Lead III must be derived. |
+| B10 | Fig. 6: "12 leads Mason-Likar configuration" | The device uses 4 electrodes / 3 limb leads. |
+| B11 | Bias divider powered from a "regulated **5 V** supply from the L7806CV", ESP32 fed "through its onboard **5 V** regulator" | L7806CV outputs 6 V; common ESP32 dev boards regulate VIN to **3.3 V**, not 5 V. The 5 V source for the divider is unexplained. **Moderate** — depends on the exact dev board. |
+| B12 | BOM lists TC1262 (×3) and MCP3202 (×2) | TC1262 failed and was replaced; MCP3202 does not appear in the final signal chain (ESP32 internal ADC used). Fine as a spend record, but label them "not in final build". |
+
+## C. Design issue not identified in the report
+
+| # | Issue |
+|---|---|
+| C1 | Bias 2.5 V ± 0.3 V reaches 2.8 V. At 11 dB attenuation the ESP32's ADC is only recommended up to ≈ 2.45 V; above that it compresses. This is a concrete mechanism for the "ADC nonlinearity" the conclusion mentions. Re-bias to ≈ 1.3 V or use the MCP3202. **Moderate-high** — exact limit varies by ESP32 variant and attenuation setting. |
+| C2 | HPF corner at 0.72 Hz is above the 0.5 Hz monitoring-ECG convention and far above the 0.05 Hz diagnostic convention; ST/T morphology is distorted. Acceptable for rhythm classification; should be stated as a scope limit. |
+
+## D. Citations and references
+
+| # | Issue |
+|---|---|
+| D1 | Two different references are both numbered **[45]** (Farahmand et al.; Health Canada SaMD guidance). |
+| D2 | Text cites "**Clifford et al. [42]**"; reference [42] is **Behar et al.** (2013). |
+| D3 | Numbering restarts: the Introduction's [1]–[7] (arrhythmia prevalence, market, physiology) resolve to the Theory section's sources — e.g. the "one in three" lifetime-risk claim points to [1], Nerbonne & Kass (2005), a review of ion channels. |
+| D4 | Several web sources are blogs or vendor posts (Medium, company blogs, "I've shipped both") cited for performance numbers. Acceptable for engineering context, weak as evidence. |
+
+## E. Editorial leftovers
+
+- Template instructions still in the text: the TOC "Update Field" reminder; "You should demonstrate alternative design solutions…"; "Tabulate the cost of all materials…"; "Detail the obtained simulation results."
+- Unresolved placeholders: "Table rtX", "Figures rfX–rfZ", "Table X2", "Table 4.1" (the stack table is Table 1).
+- Wrong cross-references: confusion matrices are cited as Figures 12–14 and 13–14; they are Figures 16–18. Real-world results are cited as Figure 15; they are Figure 19.
+- Duplicate section numbers: two sections numbered 2.1 under Alternative Designs.
+- Typos: "eveng" → "event"; "to avoid head rotation" → presumably "to avoid rotation"; "Students A required" → "Student A required".

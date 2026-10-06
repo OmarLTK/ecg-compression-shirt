@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+node_modules/
+.expo/
+*.env
+data/
+*.dat
+*.hea
+*.atr
+.DS_Store
